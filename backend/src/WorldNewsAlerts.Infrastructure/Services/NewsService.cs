@@ -56,6 +56,8 @@ public class NewsService(AppDbContext db, IEnumerable<INewsProvider> providers, 
         catch (Exception ex)
         {
             logger.LogWarning("News retrieval failed ({ErrorType})", ex.GetType().Name);
+            //write the detailed error to the log
+            logger.LogError(ex, "News retrieval failed: {ErrorMessage}", ex.Message);
             // Never persist raw process/network exception text that may contain secrets.
             if (execution is null) throw;
             db.ChangeTracker.Clear(); db.ProviderExecutions.Attach(execution);

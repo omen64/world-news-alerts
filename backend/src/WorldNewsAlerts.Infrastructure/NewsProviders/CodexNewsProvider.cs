@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Json.Schema;
 using Microsoft.Extensions.Configuration;
 using WorldNewsAlerts.Application;
@@ -16,17 +17,20 @@ public class CodexNewsProvider(IConfiguration config) : INewsProvider
         Directory.CreateDirectory(directory);
         var schemaPath = Path.Combine(directory, "news-schema.json");
         var resultPath = Path.Combine(directory, "news-result.json");
-        await File.WriteAllTextAsync(schemaPath, NewsSchema.Json, cancellationToken);
+        // Strict structured output does not support uniqueItems; retain it in local validation.
+        var outputSchema = JsonNode.Parse(NewsSchema.Json)!;
+        outputSchema["properties"]!["events"]!["items"]!["properties"]!["categories"]!.AsObject().Remove("uniqueItems");
+        await File.WriteAllTextAsync(schemaPath, outputSchema.ToJsonString(), cancellationToken);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(config.GetValue("Codex:TimeoutSeconds", 180), 10, 900)));
         var executable = config["Codex:Executable"] ?? "codex";
         // On Windows configure the native codex.exe, not a .cmd shim (no shell is launched).
         var start = new ProcessStartInfo(executable)
         {
-            WorkingDirectory = directory, RedirectStandardInput = true, RedirectStandardOutput = true,
+            WorkingDirectory = directory, RedirectStandardOutput = true,
             RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true
         };
-        foreach (var argument in new[] { "exec", "--skip-git-repo-check", "--sandbox", "read-only", "-c", "web_search=\"live\"", "--output-schema", schemaPath, "--output-last-message", resultPath, "-" })
+        foreach (var argument in new[] { "exec", "--skip-git-repo-check", "--sandbox", "read-only", "-c", "web_search=\"live\"", "--output-schema", schemaPath, "--output-last-message", resultPath, BuildPrompt(request) })
             start.ArgumentList.Add(argument);
         using var process = new Process { StartInfo = start };
         try
@@ -35,8 +39,6 @@ public class CodexNewsProvider(IConfiguration config) : INewsProvider
             // Drain both streams concurrently; discard diagnostics so credentials never reach logs.
             var stdout = process.StandardOutput.BaseStream.CopyToAsync(Stream.Null, timeout.Token);
             var stderr = process.StandardError.BaseStream.CopyToAsync(Stream.Null, timeout.Token);
-            await process.StandardInput.WriteAsync(BuildPrompt(request).AsMemory(), timeout.Token);
-            process.StandardInput.Close();
             await process.WaitForExitAsync(timeout.Token);
             await Task.WhenAll(stdout, stderr);
             if (process.ExitCode != 0) throw new InvalidOperationException($"Codex exited with code {process.ExitCode}. Check the service account's CLI authentication and search access.");
