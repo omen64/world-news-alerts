@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/WorldNewsAlerts.Api/WorldNewsAlerts.Api.csproj" />
+    <Project Path="backend/src/WorldNewsAlerts.Application/WorldNewsAlerts.Application.csproj" />
+    <Project Path="backend/src/WorldNewsAlerts.Domain/WorldNewsAlerts.Domain.csproj" />
+    <Project Path="backend/src/WorldNewsAlerts.Infrastructure/WorldNewsAlerts.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/backend/tests/">
+    <Project Path="backend/tests/WorldNewsAlerts.Tests/WorldNewsAlerts.Tests.csproj" />
+  </Folder>
+</Solution>
